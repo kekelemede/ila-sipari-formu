@@ -2,112 +2,240 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <title>İlaç Sipariş Formu - Kayıt ve Giriş</title>
+  <title>İlaç Sipariş Sistemi</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      background-color: #f4f4f4;
-    }
-    .container {
-      max-width: 400px;
-      margin: auto;
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    input, button {
-      width: 100%;
-      padding: 10px;
-      margin-top: 10px;
-      box-sizing: border-box;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-    }
-    button {
-      background-color: #3498db;
-      color: white;
-      font-weight: bold;
-      border: none;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #2980b9;
-    }
-    h2 {
-      text-align: center;
-      margin-bottom: 10px;
-    }
-    label {
-      margin-top: 10px;
-      display: block;
-      font-weight: bold;
-    }
+    body { font-family: Arial, sans-serif; background: #f4f4f4; padding: 20px; }
+    .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    input, select, textarea, button { width: 100%; padding: 10px; margin-top: 10px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+    button { background: #3498db; color: white; font-weight: bold; border: none; cursor: pointer; }
+    button:hover { background: #2980b9; }
+    #ilac_liste_ul { margin-top: 10px; padding-left: 20px; }
+    .hidden { display: none; }
   </style>
-
-  <!-- Appwrite SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/appwrite@13.0.0"></script>
 </head>
 <body>
-  <div class="container">
-    <h2>Kayıt Ol</h2>
-    <label for="name">Ad Soyad:</label>
-    <input type="text" id="name" placeholder="Ad Soyad" />
-    <label for="email">Email:</label>
-    <input type="email" id="email" placeholder="Email" />
-    <label for="password">Şifre:</label>
-    <input type="password" id="password" placeholder="Şifre" />
-    <button onclick="kayitOl()">Kayıt Ol</button>
-
-    <hr style="margin: 30px 0;" />
-
-    <h2>Giriş Yap</h2>
-    <label for="loginEmail">Email:</label>
-    <input type="email" id="loginEmail" placeholder="Email" />
-    <label for="loginPassword">Şifre:</label>
-    <input type="password" id="loginPassword" placeholder="Şifre" />
-    <button onclick="girisYap()">Giriş Yap</button>
+  <div class="container" id="authContainer">
+    <h2>Kayıt / Giriş</h2>
+    <input type="email" id="email" placeholder="Email" required />
+    <input type="password" id="password" placeholder="Şifre" required />
+    <button id="registerBtn">Kayıt Ol</button>
+    <button id="loginBtn">Giriş Yap</button>
+    <p id="authMessage" style="color:red;"></p>
   </div>
 
-  <script>
-    // Appwrite ayarları
-    const client = new Appwrite.Client()
-      .setEndpoint('https://fra.cloud.appwrite.io/v1')  // Senin Appwrite endpoint'in
-      .setProject('683c4e25003c1b18d92e');             // Senin proje ID'n
+  <div class="container hidden" id="orderContainer">
+    <h2>İlaç Siparişi</h2>
+    <p>Hoşgeldin, <span id="userEmail"></span> — <button id="logoutBtn" style="width:auto; background:#e74c3c;">Çıkış Yap</button></p>
+    
+    <label for="eczane_ad">Eczane Adı:</label>
+    <input type="text" id="eczane_ad" required />
 
-    const account = new Appwrite.Account(client);
+    <label for="depo">Depo Seç:</label>
+    <select id="depo" required>
+      <option value="">-- Depo Seç --</option>
+      <option value="ahmet">Ahmet</option>
+      <option value="eymen">Eymen</option>
+      <option value="halil">Halil</option>
+      <option value="yagiz">Yağız</option>
+    </select>
 
-    // Kayıt fonksiyonu
-    function kayitOl() {
+    <label for="ilac">İlaç Seç:</label>
+    <select id="ilac">
+      <option value="Parol">Parol</option>
+      <option value="Dolorex">Dolorex</option>
+      <option value="Augmentin">Augmentin</option>
+      <option value="Katarin">Katarin</option>
+      <option value="Ventolin">Ventolin</option>
+    </select>
+
+    <label for="adet">Adet:</label>
+    <input type="number" id="adet" value="1" min="1" />
+
+    <button type="button" id="ilacEkleBtn">İlaç Ekle</button>
+
+    <div>
+      <strong>Eklenen İlaçlar:</strong>
+      <ul id="ilac_liste_ul"></ul>
+    </div>
+
+    <label for="ek_not">Ek Not:</label>
+    <textarea id="ek_not" rows="3"></textarea>
+
+    <button id="submitOrderBtn">Siparişi Gönder</button>
+
+    <p id="orderMessage" style="color:green;"></p>
+  </div>
+
+  <script type="module">
+    import { Client, Account } from 'https://cdn.jsdelivr.net/npm/appwrite@8.3.0/dist/appwrite.min.js';
+    import emailjs from 'https://cdn.emailjs.com/dist/email.min.js';
+
+    // Appwrite config
+    const client = new Client();
+    client.setEndpoint('https://fra.cloud.appwrite.io/v1') // APPWRITE ENDPOINT
+          .setProject('683c4e25003c1b18d92e');           // APPWRITE PROJECT ID
+
+    const account = new Account(client);
+
+    // EmailJS config
+    emailjs.init('zZlYQYiaYHusEfWNq'); // YOUR EMAILJS USER ID
+
+    // Depo mail adresleri
+    const depoEmails = {
+      ahmet: 'yavan4458@gmail.com',
+      eymen: 'yavan4458@gmail.com',
+      halil: 'halilyavan@gmail.com',
+      yagiz: 'yagizkorkmaz4458@gmail.com'
+    };
+
+    // UI elemanları
+    const authContainer = document.getElementById('authContainer');
+    const orderContainer = document.getElementById('orderContainer');
+    const registerBtn = document.getElementById('registerBtn');
+    const loginBtn = document.getElementById('loginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const authMessage = document.getElementById('authMessage');
+    const userEmailSpan = document.getElementById('userEmail');
+
+    const eczaneAdInput = document.getElementById('eczane_ad');
+    const depoSelect = document.getElementById('depo');
+    const ilacSelect = document.getElementById('ilac');
+    const adetInput = document.getElementById('adet');
+    const ilacEkleBtn = document.getElementById('ilacEkleBtn');
+    const ilacListeUl = document.getElementById('ilac_liste_ul');
+    const ekNotTextarea = document.getElementById('ek_not');
+    const submitOrderBtn = document.getElementById('submitOrderBtn');
+    const orderMessage = document.getElementById('orderMessage');
+
+    let ilaclar = [];
+
+    // Kayıt ol
+    registerBtn.onclick = async () => {
+      authMessage.textContent = '';
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value.trim();
-      const name = document.getElementById('name').value.trim();
-
-      if(!email || !password || !name) {
-        alert("Lütfen tüm alanları doldurun.");
-        return;
-      }
-
-      account.create('unique()', email, password, name)
-        .then(() => alert("✅ Kayıt başarılı! Giriş yapabilirsiniz."))
-        .catch(error => alert("❌ Kayıt hatası: " + error.message));
-    }
-
-    // Giriş fonksiyonu
-    function girisYap() {
-      const email = document.getElementById('loginEmail').value.trim();
-      const password = document.getElementById('loginPassword').value.trim();
-
       if(!email || !password) {
-        alert("Lütfen email ve şifreyi doldurun.");
+        authMessage.textContent = 'Email ve şifre gerekli.';
+        return;
+      }
+      try {
+        await account.create(email, password);
+        authMessage.style.color = 'green';
+        authMessage.textContent = '✅ Kayıt başarılı! Giriş yapabilirsiniz.';
+      } catch(err) {
+        authMessage.style.color = 'red';
+        authMessage.textContent = 'Hata: ' + err.message;
+      }
+    };
+
+    // Giriş yap
+    loginBtn.onclick = async () => {
+      authMessage.textContent = '';
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value.trim();
+      if(!email || !password) {
+        authMessage.textContent = 'Email ve şifre gerekli.';
+        return;
+      }
+      try {
+        await account.createSession(email, password);
+        authMessage.textContent = '';
+        loadUser();
+      } catch(err) {
+        authMessage.style.color = 'red';
+        authMessage.textContent = 'Hata: ' + err.message;
+      }
+    };
+
+    // Kullanıcı bilgilerini yükle ve formu aç
+    async function loadUser() {
+      try {
+        const user = await account.get();
+        userEmailSpan.textContent = user.email;
+        authContainer.classList.add('hidden');
+        orderContainer.classList.remove('hidden');
+      } catch {
+        authContainer.classList.remove('hidden');
+        orderContainer.classList.add('hidden');
+      }
+    }
+
+    loadUser();
+
+    // Çıkış yap
+    logoutBtn.onclick = async () => {
+      try {
+        await account.deleteSession('current');
+        authContainer.classList.remove('hidden');
+        orderContainer.classList.add('hidden');
+        authMessage.textContent = '';
+      } catch(err) {
+        alert('Çıkış yaparken hata: ' + err.message);
+      }
+    };
+
+    // İlaç ekle
+    ilacEkleBtn.onclick = () => {
+      const ilac = ilacSelect.value;
+      const adet = adetInput.value;
+      if(!ilac || adet < 1) {
+        alert('Lütfen geçerli ilaç ve adet seçin.');
+        return;
+      }
+      const eklenen = `${ilac} x ${adet}`;
+      ilaclar.push(eklenen);
+
+      const li = document.createElement('li');
+      li.textContent = eklenen;
+      ilacListeUl.appendChild(li);
+    };
+
+    // Siparişi gönder
+    submitOrderBtn.onclick = () => {
+      orderMessage.textContent = '';
+      const eczane_ad = eczaneAdInput.value.trim();
+      const depo = depoSelect.value;
+      const ek_not = ekNotTextarea.value.trim();
+
+      if (!eczane_ad) {
+        alert('Eczane adı zorunludur.');
+        return;
+      }
+      if (!depo) {
+        alert('Lütfen depo seçiniz.');
+        return;
+      }
+      if (ilaclar.length === 0) {
+        alert('Lütfen en az bir ilaç ekleyin.');
         return;
       }
 
-      account.createEmailSession(email, password)
-        .then(() => alert("✅ Giriş başarılı!"))
-        .catch(error => alert("❌ Giriş hatası: " + error.message));
-    }
+      const ilac_listesi = ilaclar.join(", ");
+      const to_email = depoEmails[depo];
+
+      // EmailJS gönderim
+      emailjs.send('service_w96rvks', 'template_3044xof', {
+        eczane_ad,
+        ilac_listesi,
+        ek_not,
+        to_email
+      }).then(() => {
+        orderMessage.style.color = 'green';
+        orderMessage.textContent = '✅ Sipariş başarıyla gönderildi!';
+        // Formu temizle
+        eczaneAdInput.value = '';
+        depoSelect.value = '';
+        ilacSelect.value = 'Parol';
+        adetInput.value = 1;
+        ekNotTextarea.value = '';
+        ilacListeUl.innerHTML = '';
+        ilaclar = [];
+      }).catch(err => {
+        orderMessage.style.color = 'red';
+        orderMessage.textContent = '❌ Hata oluştu: ' + err.text || err.message;
+      });
+    };
+
   </script>
 </body>
 </html>
